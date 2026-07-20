@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">How Prewalk hands work from a frontier model to a faster model</title>
+  <desc id="description">A frontier model explores, plans, creates a todo list, and makes the first mutation. The complete conversation, tools, todo state, and started implementation then transfer to a faster model that continues, verifies, and finishes.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#090a14"/>
+      <stop offset="0.55" stop-color="#111126"/>
+      <stop offset="1" stop-color="#071a1c"/>
+    </linearGradient>
+    <linearGradient id="frontier" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="executor" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#0ea5a4"/>
+    </linearGradient>
+    <linearGradient id="bridge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#818cf8"/>
+      <stop offset="0.5" stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+    <filter id="violetGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="cyanGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#background)"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+  <circle cx="255" cy="300" r="270" fill="#7c3aed" opacity="0.09"/>
+  <circle cx="1370" cy="350" r="300" fill="#14b8a6" opacity="0.09"/>
+
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <rect x="72" y="56" width="132" height="38" rx="19" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.14"/>
+    <text x="138" y="81" fill="#c4b5fd" font-size="17" font-weight="700" text-anchor="middle" letter-spacing="2">PREWALK</text>
+    <text x="72" y="145" fill="#f8fafc" font-size="52" font-weight="760" letter-spacing="-1.8">Start strong. Hand off with momentum.</text>
+    <text x="72" y="186" fill="#aeb6cc" font-size="23">The executor receives the work already in motion, not a cold plan document.</text>
+
+    <g filter="url(#softShadow)">
+      <rect x="72" y="235" width="515" height="385" rx="32" fill="#15152b" stroke="#8b5cf6" stroke-opacity="0.45" stroke-width="2"/>
+      <rect x="1013" y="235" width="515" height="385" rx="32" fill="#0d2527" stroke="#2dd4bf" stroke-opacity="0.45" stroke-width="2"/>
+    </g>
+
+    <circle cx="150" cy="310" r="43" fill="url(#frontier)" filter="url(#violetGlow)"/>
+    <path d="M132 310h36M150 292v36" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity="0.95"/>
+    <text x="216" y="296" fill="#c4b5fd" font-size="16" font-weight="750" letter-spacing="1.8">FRONTIER MODEL</text>
+    <text x="216" y="329" fill="#ffffff" font-size="29" font-weight="720">Understand and begin</text>
+
+    <g font-size="21" font-weight="620">
+      <circle cx="137" cy="395" r="18" fill="#8b5cf6"/><text x="137" y="402" fill="#ffffff" text-anchor="middle" font-size="15">1</text>
+      <text x="175" y="403" fill="#edf0ff">Explore the real code and constraints</text>
+      <circle cx="137" cy="463" r="18" fill="#8b5cf6"/><text x="137" y="470" fill="#ffffff" text-anchor="middle" font-size="15">2</text>
+      <text x="175" y="471" fill="#edf0ff">Form the plan and concrete todo list</text>
+      <circle cx="137" cy="531" r="18" fill="#8b5cf6"/><text x="137" y="538" fill="#ffffff" text-anchor="middle" font-size="15">3</text>
+      <text x="175" y="539" fill="#edf0ff">Make the first successful mutation</text>
+    </g>
+    <rect x="110" y="570" width="439" height="26" rx="13" fill="#8b5cf6" fill-opacity="0.15"/>
+    <rect x="110" y="570" width="320" height="26" rx="13" fill="url(#frontier)" opacity="0.9"/>
+    <text x="523" y="589" fill="#c4b5fd" font-size="14" text-anchor="end">deep reasoning where it matters</text>
+
+    <circle cx="1091" cy="310" r="43" fill="url(#executor)" filter="url(#cyanGlow)"/>
+    <path d="M1074 310l12 12 23-27" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1157" y="296" fill="#99f6e4" font-size="16" font-weight="750" letter-spacing="1.8">FAST MODEL</text>
+    <text x="1157" y="329" fill="#ffffff" font-size="29" font-weight="720">Continue and finish</text>
+
+    <g font-size="21" font-weight="620">
+      <circle cx="1078" cy="395" r="18" fill="#14b8a6"/><text x="1078" y="402" fill="#ffffff" text-anchor="middle" font-size="15">4</text>
+      <text x="1116" y="403" fill="#e6fffb">Continue the started implementation</text>
+      <circle cx="1078" cy="463" r="18" fill="#14b8a6"/><text x="1078" y="470" fill="#ffffff" text-anchor="middle" font-size="15">5</text>
+      <text x="1116" y="471" fill="#e6fffb">Check consistency, scope, and tests</text>
+      <circle cx="1078" cy="531" r="18" fill="#14b8a6"/><text x="1078" y="538" fill="#ffffff" text-anchor="middle" font-size="15">6</text>
+      <text x="1116" y="539" fill="#e6fffb">Finish with full working context</text>
+    </g>
+    <rect x="1051" y="570" width="439" height="26" rx="13" fill="#14b8a6" fill-opacity="0.15"/>
+    <rect x="1051" y="570" width="401" height="26" rx="13" fill="url(#executor)" opacity="0.9"/>
+    <text x="1464" y="589" fill="#99f6e4" font-size="14" text-anchor="end">fast execution with momentum</text>
+
+    <path d="M 603 367 C 665 367, 679 367, 726 367" stroke="#8b5cf6" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M 874 367 C 921 367, 935 367, 997 367" stroke="#2dd4bf" stroke-width="5" fill="none" stroke-linecap="round" marker-end="url(#arrow)"/>
+    <g filter="url(#softShadow)">
+      <rect x="682" y="296" width="236" height="142" rx="28" fill="#211c24" stroke="#f59e0b" stroke-opacity="0.8" stroke-width="2"/>
+      <circle cx="800" cy="334" r="10" fill="#f59e0b"/>
+      <text x="800" y="377" fill="#fbbf24" font-size="15" font-weight="780" text-anchor="middle" letter-spacing="1.5">FIRST MUTATION</text>
+      <text x="800" y="408" fill="#ffffff" font-size="21" font-weight="700" text-anchor="middle">The handoff point</text>
+    </g>
+
+    <rect x="550" y="470" width="500" height="106" rx="25" fill="#ffffff" fill-opacity="0.055" stroke="url(#bridge)" stroke-width="2"/>
+    <text x="800" y="501" fill="#f8fafc" font-size="16" font-weight="750" text-anchor="middle" letter-spacing="1.5">WHAT CROSSES THE BRIDGE</text>
+    <text x="800" y="537" fill="#d7dbea" font-size="19" font-weight="600" text-anchor="middle">conversation  •  tool history  •  todo state</text>
+    <text x="800" y="563" fill="#d7dbea" font-size="19" font-weight="600" text-anchor="middle">started implementation  •  discovered constraints</text>
+
+    <rect x="72" y="660" width="1456" height="165" rx="30" fill="#0b1020" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.1"/>
+    <text x="108" y="705" fill="#ffffff" font-size="20" font-weight="720">Reported on SWE-Bench Pro</text>
+    <text x="1492" y="705" fill="#818ba3" font-size="15" text-anchor="end">Can Bölük, “You only need the frontier model for one single edit”</text>
+
+    <g>
+      <rect x="108" y="731" width="310" height="64" rx="18" fill="#8b5cf6" fill-opacity="0.12" stroke="#8b5cf6" stroke-opacity="0.3"/>
+      <text x="135" y="759" fill="#c4b5fd" font-size="28" font-weight="800">97%</text>
+      <text x="218" y="759" fill="#e7e9f4" font-size="17" font-weight="620">frontier performance</text>
+      <text x="135" y="782" fill="#8f98ae" font-size="14">without paying frontier cost end-to-end</text>
+
+      <rect x="441" y="731" width="310" height="64" rx="18" fill="#f59e0b" fill-opacity="0.11" stroke="#f59e0b" stroke-opacity="0.3"/>
+      <text x="468" y="759" fill="#fbbf24" font-size="28" font-weight="800">41%</text>
+      <text x="550" y="759" fill="#e7e9f4" font-size="17" font-weight="620">lower cost</text>
+      <text x="468" y="782" fill="#8f98ae" font-size="14">reported dollars per task</text>
+
+      <rect x="774" y="731" width="310" height="64" rx="18" fill="#14b8a6" fill-opacity="0.11" stroke="#14b8a6" stroke-opacity="0.3"/>
+      <text x="801" y="759" fill="#5eead4" font-size="28" font-weight="800">1.9×</text>
+      <text x="889" y="759" fill="#e7e9f4" font-size="17" font-weight="620">faster</text>
+      <text x="801" y="782" fill="#8f98ae" font-size="14">reported completion speed</text>
+
+      <rect x="1107" y="731" width="385" height="64" rx="18" fill="#38bdf8" fill-opacity="0.1" stroke="#38bdf8" stroke-opacity="0.3"/>
+      <text x="1134" y="759" fill="#7dd3fc" font-size="28" font-weight="800">~3×</text>
+      <text x="1212" y="759" fill="#e7e9f4" font-size="17" font-weight="620">less likely to cheat</text>
+      <text x="1134" y="782" fill="#8f98ae" font-size="14">reported benchmark behavior</text>
+    </g>
+
+    <text x="72" y="866" fill="#727c93" font-size="15">pi-prewalk · independent Pi extension · github.com/ThewindMom/pi-prewalk</text>
+    <text x="1528" y="866" fill="#727c93" font-size="15" text-anchor="end">stencil.so/blog/prewalk</text>
+  </g>
+</svg>

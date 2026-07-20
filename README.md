@@ -9,6 +9,8 @@ as a standalone [Pi](https://github.com/badlogic/pi-mono) extension. It follows
 the todo-gated handoff implemented by
 [oh-my-pi](https://github.com/can1357/oh-my-pi) without requiring a Pi fork.
 
+![How Prewalk works: the frontier model explores, plans, and starts the implementation before handing the full working context to a faster model](./assets/prewalk-flow.svg)
+
 ## Why Prewalk
 
 Traditional planner/executor workflows give the expensive model only the plan.
@@ -42,7 +44,7 @@ pi install git:github.com/ThewindMom/pi-prewalk
 Restart Pi after installation. To pin this release:
 
 ```bash
-pi install git:github.com/ThewindMom/pi-prewalk@v0.3.0
+pi install git:github.com/ThewindMom/pi-prewalk@v0.4.0
 ```
 
 Pi packages execute code with your user permissions. Review third-party source
@@ -55,8 +57,8 @@ installs its dependencies, and makes it available to `pi update` and
 directly with `pi -e ./src/index.ts`.
 
 ```bash
-pi update git:github.com/ThewindMom/pi-prewalk@v0.3.0
-pi remove git:github.com/ThewindMom/pi-prewalk@v0.3.0
+pi update git:github.com/ThewindMom/pi-prewalk@v0.4.0
+pi remove git:github.com/ThewindMom/pi-prewalk@v0.4.0
 ```
 
 ## Use
@@ -81,27 +83,10 @@ The models must already be available and authenticated in Pi. The planner is
 selected when a new session starts. After the first todo-gated mutation,
 Prewalk selects the executor and its thinking level.
 
-Pi does not currently expose native model roles through its public extension
-API. pi-prewalk therefore supports explicit extension-owned aliases without
-using Pi internals:
-
-```json
-{
-  "enabled": true,
-  "roles": {
-    "planner": "openai-codex/gpt-5.6-sol",
-    "smol": "openai-codex/gpt-5.6-luna"
-  },
-  "planner": {
-    "model": "role:planner",
-    "thinking": "high"
-  },
-  "executor": {
-    "model": "role:smol",
-    "thinking": "high"
-  }
-}
-```
+With `"enabled": true`, that is all you need: every new session automatically
+starts on the configured planner and arms the executor. You do not need to run
+`/prewalk` or pass a CLI flag. Resumed, forked, and reloaded sessions preserve
+their existing model and Prewalk state instead of being reset.
 
 Arm Prewalk manually inside an existing session:
 
@@ -123,9 +108,9 @@ Other commands:
 /prewalk off
 ```
 
-`/prewalk status` reports the configured alias and resolved model, executor
-thinking, todo-gate readiness, planning-checkpoint state, and the tool that
-triggered the completed handoff.
+`/prewalk status` reports the executor model and thinking level, todo-gate
+readiness, planning-checkpoint state, and the tool that triggered the completed
+handoff.
 
 Start Pi with Prewalk enabled:
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 - 2026-07-20
+
+- Remove extension-owned model-role aliases in favor of direct, explicit
+  planner and executor model configuration.
+- Clarify that `enabled: true` automatically applies the planner and arms the
+  executor for every new session without a command or CLI flag.
+- Add an intuitive Prewalk flow graphic for README and community sharing.
+
 ## 0.3.0 - 2026-07-20
 
 - Add extension-owned `role:<name>` model aliases resolved through Pi's public

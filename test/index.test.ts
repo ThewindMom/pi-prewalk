@@ -5,7 +5,6 @@ import {
   defaultConfigPath,
   initialState,
   parsePrewalkConfig,
-  resolveRoleTarget,
   resolveTarget,
 } from "../src/index.ts";
 import { createHarness, fakeModel } from "./harness.ts";
@@ -40,12 +39,10 @@ describe("pi-prewalk", () => {
       enabled: true,
       planner: { model: "frontier/architect", thinking: "medium" },
       executor: { model: "fast/executor", thinking: "low" },
-      roles: { smol: "fast/executor" },
     })).toEqual({
       enabled: true,
       planner: { model: "frontier/architect", thinking: "medium" },
       executor: { model: "fast/executor", thinking: "low" },
-      roles: { smol: "fast/executor" },
     });
     expect(() => parsePrewalkConfig({ enabled: true })).toThrow("executor");
     expect(() => parsePrewalkConfig({
@@ -53,21 +50,6 @@ describe("pi-prewalk", () => {
       executor: { model: "fast/executor", thinking: "turbo" },
     })).toThrow("thinking");
     expect(() => parsePrewalkConfig({ enabled: false, surprise: true })).toThrow("unknown");
-    expect(() => parsePrewalkConfig({ enabled: false, roles: [] })).toThrow("roles");
-    expect(() => parsePrewalkConfig({ enabled: false, roles: { "bad role": "fast/executor" } }))
-      .toThrow("role name");
-    expect(() => parsePrewalkConfig({ enabled: false, roles: { smol: "" } })).toThrow("non-empty");
-  });
-
-  test("resolves extension-owned role targets without Pi internals", () => {
-    expect(resolveRoleTarget("frontier/architect", { smol: "fast/executor" })).toEqual({
-      spec: "frontier/architect",
-    });
-    expect(resolveRoleTarget("role:smol", { smol: "fast/executor" })).toEqual({
-      spec: "fast/executor",
-    });
-    expect(resolveRoleTarget("role:missing", { smol: "fast/executor" }).error)
-      .toContain("Unknown Prewalk role");
   });
 
   test("new sessions apply configured planner and executor settings", async () => {
@@ -211,43 +193,17 @@ describe("pi-prewalk", () => {
     expect(harness.thinkingChanges).toEqual(["high"]);
   });
 
-  test("configured roles resolve through the public model registry", async () => {
-    const harness = createHarness({
-      config: {
-        enabled: true,
-        roles: {
-          planner: "frontier/architect",
-          smol: "fast/executor",
-        },
-        planner: { model: "role:planner", thinking: "medium" },
-        executor: { model: "role:smol", thinking: "low" },
-      },
-      currentModel: fakeModel("other", "default"),
-      models: [
-        fakeModel("other", "default"),
-        fakeModel("frontier", "architect"),
-        fakeModel("fast", "executor"),
-      ],
-    });
-
-    await harness.start();
-    expect(harness.modelChanges.at(-1)?.id).toBe("architect");
-    await harness.turn([{ toolName: "todo" }, { toolName: "write" }]);
-    expect(harness.modelChanges.at(-1)?.id).toBe("executor");
-  });
-
-  test("status reports resolved target, gate, thinking, and handoff reason", async () => {
+  test("status reports target, gate, thinking, and handoff reason", async () => {
     const harness = createHarness({
       config: {
         enabled: false,
-        roles: { smol: "fast/executor" },
-        executor: { model: "role:smol", thinking: "low" },
+        executor: { model: "fast/executor", thinking: "low" },
       },
     });
     await harness.start();
-    await harness.command("role:smol high");
+    await harness.command("fast/executor high");
     await harness.command("status");
-    expect(harness.notifications.at(-1)?.message).toContain("role:smol -> fast/executor");
+    expect(harness.notifications.at(-1)?.message).toContain("fast/executor");
     expect(harness.notifications.at(-1)?.message).toContain("thinking=high");
     expect(harness.notifications.at(-1)?.message).toContain("todo=waiting");
     expect(harness.notifications.at(-1)?.message).toContain("plan=injected");

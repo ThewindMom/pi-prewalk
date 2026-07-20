@@ -3,18 +3,14 @@ import { createHarness } from "../test/harness.ts";
 const harness = createHarness({
   config: {
     enabled: true,
-    roles: {
-      planner: "frontier/architect",
-      smol: "fast/executor",
-    },
-    planner: { model: "role:planner", thinking: "medium" },
-    executor: { model: "role:smol", thinking: "low" },
+    planner: { model: "frontier/architect", thinking: "medium" },
+    executor: { model: "fast/executor", thinking: "low" },
   },
 });
 await harness.start();
 await harness.command("status");
-if (!harness.notifications.at(-1)?.message.includes("role:smol -> fast/executor")) {
-  throw new Error("status did not report the configured role and resolved executor");
+if (!harness.notifications.at(-1)?.message.includes("fast/executor")) {
+  throw new Error("status did not report the configured executor");
 }
 await harness.turn([{ toolName: "read" }, { toolName: "todo" }]);
 await harness.turn([{ toolName: "edit" }]);
