@@ -1,0 +1,49 @@
+{
+  "name": "pi-prewalk",
+  "version": "0.1.0",
+  "description": "Todo-gated frontier-to-fast model handoff for Pi",
+  "type": "module",
+  "license": "MIT",
+  "author": "ThewindMom",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThewindMom/pi-prewalk.git"
+  },
+  "homepage": "https://github.com/ThewindMom/pi-prewalk#readme",
+  "bugs": {
+    "url": "https://github.com/ThewindMom/pi-prewalk/issues"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "pi-extension",
+    "coding-agent",
+    "llm",
+    "model-routing",
+    "prewalk"
+  ],
+  "files": [
+    "src",
+    "LICENSE",
+    "CHANGELOG.md",
+    "NOTICE.md",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run typecheck && bun test"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "^0.80.10",
+    "@earendil-works/pi-ai": "^0.80.10",
+    "@earendil-works/pi-coding-agent": "^0.80.10",
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.3"
+  }
+}
