@@ -279,6 +279,7 @@ describe("pi-prewalk", () => {
 
     expect(harness.modelChanges.map((model) => `${model.provider}/${model.id}`)).toEqual(["fast/executor"]);
     expect(harness.notifications.at(-1)?.message).toContain("after the first apply_patch");
+    expect(harness.sent.at(-1)?.options).toEqual({ deliverAs: "steer" });
   });
 
   test("edit before todo waits for a later edit", async () => {

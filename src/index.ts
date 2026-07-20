@@ -183,6 +183,14 @@ function isApplyPatchCall(message: unknown, toolCallId: string): boolean {
   });
 }
 
+function hasToolCall(message: unknown): boolean {
+  if (!message || typeof message !== "object" || !("content" in message)) return false;
+  const content = (message as { content?: unknown }).content;
+  return Array.isArray(content) && content.some((part) => (
+    !!part && typeof part === "object" && (part as { type?: unknown }).type === "toolCall"
+  ));
+}
+
 export type PrewalkPhase = "idle" | "armed" | "switched";
 
 export interface PrewalkTarget {
@@ -467,6 +475,24 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     };
   });
 
+  pi.on("message_end", async (event, ctx) => {
+    if (state.phase !== "armed" || event.message.role !== "assistant") return;
+
+    if (!state.planInjected) {
+      injectPlan();
+      ctx.ui.notify("Prewalk injected the planning checkpoint.", "info");
+      return;
+    }
+    if (!state.continuePending || hasToolCall(event.message)) return;
+
+    state = { ...state, continuePending: false };
+    persist();
+    pi.sendMessage(
+      { customType: CONTINUE_MESSAGE_TYPE, content: PREWALK_CONTINUE_PROMPT, display: false },
+      { triggerTurn: true, deliverAs: "steer" },
+    );
+  });
+
   pi.on("turn_end", async (event, ctx) => {
     if (state.phase !== "armed" || event.message.role !== "assistant") return;
 
@@ -476,12 +502,6 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
 
     if (state.planInjected && event.toolResults.length > 0) {
       state = { ...state, continuePending: true };
-    } else if (state.continuePending) {
-      state = { ...state, continuePending: false };
-      pi.sendMessage(
-        { customType: CONTINUE_MESSAGE_TYPE, content: PREWALK_CONTINUE_PROMPT, display: false },
-        { triggerTurn: true, deliverAs: "steer" },
-      );
     }
 
     const todoGateOpen = state.todoSeen || !pi.getActiveTools().includes("todo");
@@ -493,10 +513,6 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
 
     if (!action) {
       persist();
-      if (!state.planInjected) {
-        injectPlan();
-        ctx.ui.notify("Prewalk injected the planning checkpoint.", "info");
-      }
       return;
     }
 
@@ -541,7 +557,7 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     ctx.ui.notify(`Prewalk switched to ${targetLabel(target)} after the first ${actionLabel}.`, "info");
     pi.sendMessage(
       { customType: CHECKLIST_MESSAGE_TYPE, content: PREWALK_CHECKLIST_PROMPT, display: false },
-      { triggerTurn: true, deliverAs: "steer" },
+      { deliverAs: "steer" },
     );
   });
 

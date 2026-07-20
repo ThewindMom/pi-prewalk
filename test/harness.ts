@@ -47,6 +47,8 @@ export function createHarness(options?: {
   const models = options?.models ?? [fakeModel("frontier", "architect"), fakeModel("fast", "executor")];
   let activeTools = options?.activeTools ?? ["read", "bash", "edit", "write", "todo"];
   let currentModel = options?.currentModel ?? models[0];
+  let processing = false;
+  let streaming = false;
 
   const context = {
     ui: {
@@ -87,6 +89,9 @@ export function createHarness(options?: {
     },
     appendEntry: (customType: string, data: unknown) => entries.push({ type: "custom", customType, data }),
     sendMessage: (message: SentMessage["message"], sendOptions?: SentMessage["options"]) => {
+      if (processing && !streaming && sendOptions?.triggerTurn) {
+        throw new Error("Agent is already processing a prompt.");
+      }
       sent.push({ message, options: sendOptions });
     },
     getActiveTools: () => activeTools,
@@ -144,28 +149,38 @@ export function createHarness(options?: {
       isError?: boolean;
       arguments?: Record<string, unknown>;
     }> = []) {
-      await emit("turn_end", {
-        type: "turn_end",
-        turnIndex: 0,
-        message: {
-          role: "assistant",
-          content: toolResults.map((result, index) => ({
-            type: "toolCall",
-            id: `tool-${index}`,
-            name: result.toolName,
-            arguments: result.arguments ?? {},
-          })),
-          timestamp: Date.now(),
-        },
-        toolResults: toolResults.map((result, index) => ({
-          role: "toolResult",
-          toolCallId: `tool-${index}`,
-          toolName: result.toolName,
-          content: [],
-          isError: result.isError ?? false,
-          timestamp: Date.now(),
+      const message = {
+        role: "assistant",
+        content: toolResults.map((result, index) => ({
+          type: "toolCall",
+          id: `tool-${index}`,
+          name: result.toolName,
+          arguments: result.arguments ?? {},
         })),
-      });
+        timestamp: Date.now(),
+      };
+      processing = true;
+      try {
+        streaming = true;
+        await emit("message_end", { type: "message_end", message });
+        streaming = false;
+        await emit("turn_end", {
+          type: "turn_end",
+          turnIndex: 0,
+          message,
+          toolResults: toolResults.map((result, index) => ({
+            role: "toolResult",
+            toolCallId: `tool-${index}`,
+            toolName: result.toolName,
+            content: [],
+            isError: result.isError ?? false,
+            timestamp: Date.now(),
+          })),
+        });
+      } finally {
+        streaming = false;
+        processing = false;
+      }
     },
     async filterContext(messages: unknown[]) {
       const [result] = await emit("context", { type: "context", messages });
