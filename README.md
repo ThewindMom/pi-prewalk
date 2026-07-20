@@ -89,18 +89,22 @@ Prewalk is intentionally conservative:
 
 1. The frontier model gets the task and explores normally.
 2. A hidden checkpoint asks it to write a concrete plan and create a todo list.
-3. `bash`, reads, searches, and the todo call itself do not trigger a switch.
-4. The first successful `edit` or `write` after todo exists triggers the
-   one-way model switch.
-5. If todo is not an active tool, the first successful `edit` or `write`
-   triggers the switch directly.
+3. Ordinary `bash`, reads, searches, and the todo call itself do not trigger a
+   switch.
+4. The first successful `edit`, `write`, or `bash`-driven `apply_patch` after
+   todo exists triggers the one-way model switch.
+5. If todo is not an active tool, the first successful mutation above triggers
+   the switch directly.
 6. The executor inherits the plan and tool history, but not the hidden planning
    instruction.
 7. A hidden checklist asks the executor to check consistency, scope, and the
    complete relevant test module before finishing.
 
-A failed edit never triggers the switch. Multiple tool calls in one assistant
-turn produce at most one handoff because switching occurs at `turn_end`.
+A failed mutation never triggers the switch. For Senpi compatibility,
+`apply_patch` is recognized when it is executed directly or as a pipeline
+consumer by a successful `bash` tool call; quoted mentions and shell comments
+do not trigger a handoff. Multiple tool calls in one assistant turn produce at
+most one handoff because switching occurs at `turn_end`.
 
 ## Configuration
 

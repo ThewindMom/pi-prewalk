@@ -121,11 +121,24 @@ export function createHarness(options?: {
       if (!command) throw new Error("prewalk command not registered");
       await command.handler(args, context);
     },
-    async turn(toolResults: Array<{ toolName: string; isError?: boolean }> = []) {
+    async turn(toolResults: Array<{
+      toolName: string;
+      isError?: boolean;
+      arguments?: Record<string, unknown>;
+    }> = []) {
       await emit("turn_end", {
         type: "turn_end",
         turnIndex: 0,
-        message: { role: "assistant", content: [], timestamp: Date.now() },
+        message: {
+          role: "assistant",
+          content: toolResults.map((result, index) => ({
+            type: "toolCall",
+            id: `tool-${index}`,
+            name: result.toolName,
+            arguments: result.arguments ?? {},
+          })),
+          timestamp: Date.now(),
+        },
         toolResults: toolResults.map((result, index) => ({
           role: "toolResult",
           toolCallId: `tool-${index}`,

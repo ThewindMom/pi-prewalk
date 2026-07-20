@@ -20,7 +20,7 @@ describe("pi-prewalk", () => {
     expect(harness.statuses.get("pi-prewalk")).toContain("fast/executor");
   });
 
-  test("bash and todo do not switch; first edit after todo does", async () => {
+  test("ordinary bash and todo do not switch; first edit after todo does", async () => {
     const harness = createHarness();
     await harness.start();
     await harness.command("fast/executor");
@@ -32,6 +32,53 @@ describe("pi-prewalk", () => {
     await harness.turn([{ toolName: "edit" }]);
     expect(harness.modelChanges.map((model) => `${model.provider}/${model.id}`)).toEqual(["fast/executor"]);
     expect(harness.sent.at(-1)?.message.customType).toBe("pi-prewalk-checklist");
+  });
+
+  test("successful bash apply_patch switches after todo", async () => {
+    const harness = createHarness();
+    await harness.start();
+    await harness.command("fast/executor");
+
+    await harness.turn([{ toolName: "todo" }]);
+    await harness.turn([{
+      toolName: "bash",
+      arguments: { command: "printf 'apply_patch is available'" },
+    }]);
+    await harness.turn([{
+      toolName: "bash",
+      arguments: { command: "printf '%s' 'printf patch | apply_patch'" },
+    }]);
+    await harness.turn([{
+      toolName: "bash",
+      arguments: { command: "printf patch # | apply_patch" },
+    }]);
+    await harness.turn([{
+      toolName: "bash",
+      isError: true,
+      arguments: { command: "printf '%s\\n' '*** Begin Patch' '*** End Patch' | apply_patch" },
+    }]);
+    expect(harness.modelChanges).toHaveLength(0);
+
+    await harness.turn([{
+      toolName: "bash",
+      arguments: { command: "printf '%s\\n' '*** Begin Patch' '*** End Patch' | apply_patch" },
+    }]);
+    expect(harness.modelChanges.map((model) => `${model.provider}/${model.id}`)).toEqual(["fast/executor"]);
+    expect(harness.notifications.at(-1)?.message).toContain("after the first apply_patch");
+  });
+
+  test("successful direct apply_patch heredoc switches after todo", async () => {
+    const harness = createHarness();
+    await harness.start();
+    await harness.command("fast/executor");
+
+    await harness.turn([{ toolName: "todo" }]);
+    await harness.turn([{
+      toolName: "bash",
+      arguments: { command: "apply_patch <<'PATCH'\n*** Begin Patch\n*** End Patch\nPATCH" },
+    }]);
+
+    expect(harness.modelChanges.map((model) => `${model.provider}/${model.id}`)).toEqual(["fast/executor"]);
   });
 
   test("edit before todo waits for a later edit", async () => {

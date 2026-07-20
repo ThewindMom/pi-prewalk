@@ -8,6 +8,76 @@ const PLAN_MESSAGE_PREFIX = "pi-prewalk-plan";
 const CONTINUE_MESSAGE_TYPE = "pi-prewalk-continue";
 const CHECKLIST_MESSAGE_TYPE = "pi-prewalk-checklist";
 const ACTION_TOOLS = new Set(["edit", "write"]);
+const APPLY_PATCH_COMMAND = /(?:^|(?:&&|\|\||\||;|\n)\s*)(?:[^\s;&|]*\/)?apply_patch(?=\s*(?:$|&&|\|\||;|\n|<<))/m;
+
+function shellStructure(command: string): string {
+  let quote: "'" | '"' | undefined;
+  let escaped = false;
+  let comment = false;
+  let result = "";
+
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+
+    if (comment) {
+      if (character === "\n") {
+        comment = false;
+        result += "\n";
+      } else {
+        result += " ";
+      }
+      continue;
+    }
+
+    if (escaped) {
+      escaped = false;
+      result += " ";
+      continue;
+    }
+
+    if (quote) {
+      if (character === quote) quote = undefined;
+      else if (quote === '"' && character === "\\") escaped = true;
+      result += " ";
+      continue;
+    }
+
+    if (character === "'" || character === '"') {
+      quote = character;
+      result += " ";
+    } else if (character === "\\") {
+      escaped = true;
+      result += " ";
+    } else if (character === "#" && (index === 0 || /[\s;&|]/.test(command[index - 1] ?? ""))) {
+      comment = true;
+      result += " ";
+    } else {
+      result += character;
+    }
+  }
+
+  return result;
+}
+
+function isApplyPatchCall(message: unknown, toolCallId: string): boolean {
+  if (!message || typeof message !== "object" || !("content" in message)) return false;
+  const content = (message as { content?: unknown }).content;
+  if (!Array.isArray(content)) return false;
+
+  return content.some((part) => {
+    if (!part || typeof part !== "object") return false;
+    const toolCall = part as {
+      type?: unknown;
+      id?: unknown;
+      name?: unknown;
+      arguments?: unknown;
+    };
+    if (toolCall.type !== "toolCall" || toolCall.id !== toolCallId || toolCall.name !== "bash") return false;
+    if (!toolCall.arguments || typeof toolCall.arguments !== "object") return false;
+    const command = (toolCall.arguments as { command?: unknown }).command;
+    return typeof command === "string" && APPLY_PATCH_COMMAND.test(shellStructure(command));
+  });
+}
 
 export type PrewalkPhase = "idle" | "armed" | "switched";
 
@@ -254,7 +324,9 @@ export default function prewalkExtension(pi: ExtensionAPI): void {
 
     const todoGateOpen = state.todoSeen || !pi.getActiveTools().includes("todo");
     const action = todoGateOpen
-      ? successfulResults.find((result) => ACTION_TOOLS.has(result.toolName))
+      ? successfulResults.find((result) =>
+        ACTION_TOOLS.has(result.toolName) ||
+        (result.toolName === "bash" && isApplyPatchCall(event.message, result.toolCallId)))
       : undefined;
 
     if (!action) {
@@ -296,7 +368,8 @@ export default function prewalkExtension(pi: ExtensionAPI): void {
     state = { ...state, phase: "switched" };
     persist();
     updateStatus(ctx);
-    ctx.ui.notify(`Prewalk switched to ${targetLabel(target)} after the first ${action.toolName}.`, "info");
+    const actionLabel = action.toolName === "bash" ? "apply_patch" : action.toolName;
+    ctx.ui.notify(`Prewalk switched to ${targetLabel(target)} after the first ${actionLabel}.`, "info");
     pi.sendMessage(
       { customType: CHECKLIST_MESSAGE_TYPE, content: PREWALK_CHECKLIST_PROMPT, display: false },
       { triggerTurn: true, deliverAs: "steer" },
