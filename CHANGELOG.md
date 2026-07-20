@@ -1,16 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-07-20
 
-- Add validated `~/.senpi/agent/prewalk.json` configuration for persistent
-  planner and executor models and thinking levels.
+- Use Pi's official `getAgentDir()` API and `PI_CODING_AGENT_DIR` for
+  `~/.pi/agent/prewalk.json` configuration.
+- Declare the official Pi coding-agent package as a runtime dependency.
+- Add validated persistent planner and executor model and thinking settings.
 - Apply persistent defaults only to new sessions while preserving model,
   thinking, and Prewalk state on resume, fork, and reload.
 - Add explicit CLI and session-local overrides with documented precedence.
-- Recognize Senpi's direct `apply_patch` tool as a successful mutation.
-- Recognize successful `bash`-driven `apply_patch` mutations so Senpi can hand
+- Recognize Pi's direct `apply_patch` tool as a successful mutation.
+- Recognize successful `bash`-driven `apply_patch` mutations so Pi can hand
   off after its required patch workflow.
 - Keep ordinary and failed shell commands from triggering the model switch.
+- Avoid redundant handoff notices and checklist prompts when the executor is
+  already the active model.
+- Add Pi-path, same-model, lifecycle, gating, persistence, and handoff
+  regression coverage.
 
 ## 0.1.0 - 2026-07-20
 

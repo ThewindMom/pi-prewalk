@@ -1,8 +1,27 @@
 import { describe, expect, test } from "bun:test";
-import { initialState, parsePrewalkConfig, resolveTarget } from "../src/index.ts";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { defaultConfigPath, initialState, parsePrewalkConfig, resolveTarget } from "../src/index.ts";
 import { createHarness, fakeModel } from "./harness.ts";
 
 describe("pi-prewalk", () => {
+  test("uses Pi's default and configured agent directories", () => {
+    const original = process.env.PI_CODING_AGENT_DIR;
+    try {
+      delete process.env.PI_CODING_AGENT_DIR;
+      expect(defaultConfigPath()).toBe(join(homedir(), ".pi", "agent", "prewalk.json"));
+
+      process.env.PI_CODING_AGENT_DIR = "~/custom-pi-agent";
+      expect(defaultConfigPath()).toBe(join(homedir(), "custom-pi-agent", "prewalk.json"));
+
+      process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
+      expect(defaultConfigPath()).toBe("/tmp/pi-agent/prewalk.json");
+    } finally {
+      if (original === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = original;
+    }
+  });
+
   test("resolves exact model ids and rejects ambiguous ids", () => {
     const models = [fakeModel("a", "fast"), fakeModel("b", "fast"), fakeModel("b", "unique")];
     expect(resolveTarget("b/fast", models).model).toBe(models[1]);
@@ -122,19 +141,35 @@ describe("pi-prewalk", () => {
     await disabled.start();
     expect(disabled.statuses.get("pi-prewalk")).toBeUndefined();
 
-    const modelOnly = createHarness({ config, activeTools: ["write"] });
-    modelOnly.flags.set("prewalk-into", "frontier/architect");
+    const modelOnly = createHarness({
+      config,
+      activeTools: ["write"],
+      models: [
+        fakeModel("frontier", "architect"),
+        fakeModel("fast", "executor"),
+        fakeModel("other", "custom"),
+      ],
+    });
+    modelOnly.flags.set("prewalk-into", "other/custom");
     await modelOnly.start();
     await modelOnly.turn([{ toolName: "write" }]);
     expect(modelOnly.thinkingChanges).toEqual(["medium", "low"]);
 
-    const overridden = createHarness({ config, argv: ["--model", "other/custom", "--thinking", "high"] });
-    overridden.flags.set("prewalk-into", "frontier/architect");
+    const overridden = createHarness({
+      config,
+      argv: ["--model", "other/custom", "--thinking", "high"],
+      models: [
+        fakeModel("frontier", "architect"),
+        fakeModel("fast", "executor"),
+        fakeModel("other", "custom"),
+      ],
+    });
+    overridden.flags.set("prewalk-into", "other/custom");
     overridden.flags.set("prewalk-executor-thinking", "max");
     await overridden.start();
     expect(overridden.modelChanges).toHaveLength(0);
     expect(overridden.thinkingChanges).toHaveLength(0);
-    expect(overridden.statuses.get("pi-prewalk")).toContain("frontier/architect");
+    expect(overridden.statuses.get("pi-prewalk")).toContain("other/custom");
     await overridden.turn([{ toolName: "todo" }, { toolName: "write" }]);
     expect(overridden.thinkingChanges).toEqual(["max"]);
   });
@@ -271,6 +306,21 @@ describe("pi-prewalk", () => {
     await harness.command("fast/executor");
     await harness.turn([{ toolName: "edit", isError: true }]);
     expect(harness.modelChanges).toHaveLength(0);
+  });
+
+  test("same-model target scrubs the plan without a redundant handoff", async () => {
+    const harness = createHarness();
+    await harness.start();
+    await harness.command("frontier/architect high");
+
+    await harness.turn([{ toolName: "todo" }]);
+    await harness.turn([{ toolName: "edit" }]);
+
+    expect(harness.currentModel.id).toBe("architect");
+    expect(harness.modelChanges).toHaveLength(0);
+    expect(harness.sent.at(-1)?.message.customType).not.toBe("pi-prewalk-checklist");
+    expect(harness.notifications.some(({ message }) => message.includes("switched"))).toBe(false);
+    expect(harness.entries.at(-1)?.data).toMatchObject({ phase: "idle", scrubPlan: true });
   });
 
   test("text-only planning continuation is bounded", async () => {

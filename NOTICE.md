@@ -7,4 +7,5 @@ in [oh-my-pi](https://github.com/can1357/oh-my-pi).
 
 The planning, continuation, and verification prompts are adapted from
 oh-my-pi. The extension implementation and Pi public-API integration are
-maintained independently by ThewindMom.
+maintained independently by ThewindMom. This is not an official oh-my-pi
+extension.

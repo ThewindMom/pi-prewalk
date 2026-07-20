@@ -1,7 +1,6 @@
 import type { Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { PREWALK_CHECKLIST_PROMPT, PREWALK_CONTINUE_PROMPT, PREWALK_PLAN_PROMPT } from "./prompts.ts";
 
@@ -76,13 +75,8 @@ export function parsePrewalkConfig(value: unknown): PrewalkConfig {
   return config;
 }
 
-function expandHome(path: string): string {
-  return path === "~" ? homedir() : path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
-}
-
 export function defaultConfigPath(): string {
-  const agentDir = process.env.SENPI_CODING_AGENT_DIR;
-  return join(agentDir ? expandHome(agentDir) : join(homedir(), ".senpi", "agent"), "prewalk.json");
+  return join(getAgentDir(), "prewalk.json");
 }
 
 export function loadPrewalkConfig(
@@ -520,11 +514,17 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
       return;
     }
 
+    const sameModel = ctx.model?.provider === model.provider && ctx.model.id === model.id;
+    if (sameModel) {
+      state = { ...state, phase: "idle", scrubPlan: true, continuePending: false };
+      persist();
+      updateStatus(ctx);
+      return;
+    }
+
     state = { ...state, scrubPlan: true, continuePending: false };
     persist();
-    const switched = ctx.model?.provider === model.provider && ctx.model.id === model.id
-      ? true
-      : await pi.setModel(model);
+    const switched = await pi.setModel(model);
     if (!switched) {
       state = { ...state, phase: "idle" };
       persist();

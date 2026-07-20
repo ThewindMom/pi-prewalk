@@ -1,6 +1,6 @@
 {
   "name": "pi-prewalk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Todo-gated frontier-to-fast model handoff for Pi",
   "type": "module",
   "license": "MIT",
@@ -39,10 +39,12 @@
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck && bun test"
   },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.10"
+  },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "^0.80.10",
     "@earendil-works/pi-ai": "^0.80.10",
-    "@earendil-works/pi-coding-agent": "^0.80.10",
     "@types/bun": "^1.3.0",
     "typescript": "^5.9.3"
   }

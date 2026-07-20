@@ -4,10 +4,12 @@
   "workspaces": {
     "": {
       "name": "pi-prewalk",
+      "dependencies": {
+        "@earendil-works/pi-coding-agent": "^0.80.10",
+      },
       "devDependencies": {
         "@earendil-works/pi-agent-core": "^0.80.10",
         "@earendil-works/pi-ai": "^0.80.10",
-        "@earendil-works/pi-coding-agent": "^0.80.10",
         "@types/bun": "^1.3.0",
         "typescript": "^5.9.3",
       },

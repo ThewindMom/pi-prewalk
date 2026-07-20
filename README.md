@@ -42,26 +42,30 @@ pi install git:github.com/ThewindMom/pi-prewalk
 Restart Pi after installation. To pin this release:
 
 ```bash
-pi install git:github.com/ThewindMom/pi-prewalk@v0.1.0
+pi install git:github.com/ThewindMom/pi-prewalk@v0.2.0
 ```
 
 Pi packages execute code with your user permissions. Review third-party source
 before installation.
 
+Pi discovers user extensions under `~/.pi/agent/extensions/`. For local
+development, load this checkout directly with `pi -e ./src/index.ts`; packages
+installed with `pi install` are managed by Pi.
+
 ## Use
 
-Create `~/.senpi/agent/prewalk.json` to enable Prewalk for new sessions:
+Create `~/.pi/agent/prewalk.json` to enable Prewalk for new sessions:
 
 ```json
 {
   "enabled": true,
   "planner": {
     "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "medium"
+    "thinking": "high"
   },
   "executor": {
     "model": "openai-codex/gpt-5.6-luna",
-    "thinking": "low"
+    "thinking": "high"
   }
 }
 ```
@@ -122,17 +126,17 @@ Prewalk is intentionally conservative:
 7. A hidden checklist asks the executor to check consistency, scope, and the
    complete relevant test module before finishing.
 
-A failed mutation never triggers the switch. For Senpi compatibility,
-`apply_patch` is recognized when it is executed directly or as a pipeline
-consumer by a successful `bash` tool call; quoted mentions and shell comments
-do not trigger a handoff. Multiple tool calls in one assistant turn produce at
-most one handoff because switching occurs at `turn_end`.
+A failed mutation never triggers the switch. `apply_patch` is recognized when
+it is executed directly or as a pipeline consumer by a successful `bash` tool
+call; quoted mentions and shell comments do not trigger a handoff. Multiple
+tool calls in one assistant turn produce at most one handoff because switching
+occurs at `turn_end`.
 
 ## Configuration
 
 | Surface | Meaning |
 | --- | --- |
-| `~/.senpi/agent/prewalk.json` | Persistent planner and executor defaults |
+| `~/.pi/agent/prewalk.json` | Persistent planner and executor defaults |
 | `/prewalk <provider/model> [thinking]` | Arm immediately in the current session |
 | `/prewalk status` | Show idle, armed, or switched state |
 | `/prewalk off` | Cancel an armed handoff |
@@ -145,7 +149,7 @@ most one handoff because switching occurs at `turn_end`.
 Valid thinking levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`,
 and `max`. Unknown settings, invalid types, unsupported thinking-level names,
 and an enabled configuration without an executor are rejected with a visible
-error. Set `SENPI_CODING_AGENT_DIR` to relocate both the agent directory and
+error. Set `PI_CODING_AGENT_DIR` to relocate both the agent directory and
 `prewalk.json`.
 
 Precedence, from highest to lowest:
@@ -154,7 +158,7 @@ Precedence, from highest to lowest:
 2. CLI flags. Standard `--model` and `--thinking` protect the planner choice;
    Prewalk-specific flags control automatic enablement and the executor.
 3. `prewalk.json`.
-4. Pi/Senpi model and thinking defaults.
+4. Pi model and thinking defaults.
 
 `PI_PREWALK_MODEL` remains a legacy executor fallback when neither
 `--prewalk-into` nor `prewalk.json` supplies one.
@@ -167,9 +171,8 @@ thinking level, and persisted Prewalk state instead of resetting them.
 ## Compatibility
 
 - Pi `0.80.10` or later is the tested baseline.
-- The runtime imports are type-only, so the extension has no production
-  dependency and can work with compatible Pi distributions exposing the same
-  public extension API.
+- The extension uses Pi's public `getAgentDir()` API and declares the official
+  `@earendil-works/pi-coding-agent` package as its runtime dependency.
 - The target model must be present in Pi's model registry with configured
   credentials.
 
@@ -189,7 +192,8 @@ Prewalk was created by [Can Bölük](https://github.com/can1357) and described i
 [You only need the frontier model for one single
 edit](https://stencil.so/blog/prewalk). This extension adapts the MIT-licensed
 implementation and prompts from
-[oh-my-pi](https://github.com/can1357/oh-my-pi) to Pi's public extension API.
+[oh-my-pi](https://github.com/can1357/oh-my-pi) to Pi's public extension API. It
+is independently maintained and is not an official oh-my-pi extension.
 
 Maintained by [ThewindMom](https://github.com/ThewindMom).
 
