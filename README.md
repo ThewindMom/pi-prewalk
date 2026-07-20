@@ -42,7 +42,7 @@ pi install git:github.com/ThewindMom/pi-prewalk
 Restart Pi after installation. To pin this release:
 
 ```bash
-pi install git:github.com/ThewindMom/pi-prewalk@v0.2.0
+pi install git:github.com/ThewindMom/pi-prewalk@v0.2.1
 ```
 
 Pi packages execute code with your user permissions. Review third-party source

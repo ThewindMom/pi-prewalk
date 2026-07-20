@@ -1,6 +1,6 @@
 {
   "name": "pi-prewalk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Todo-gated frontier-to-fast model handoff for Pi",
   "type": "module",
   "license": "MIT",

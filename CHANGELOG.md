@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 - 2026-07-20
+
+- Queue planning and continuation prompts while Pi is still streaming so the
+  extension uses `steer()` instead of attempting a nested prompt.
+- Append the executor checklist at the mutation turn boundary without starting
+  another prompt while the current agent request is still processing.
+- Model Pi's processing-versus-streaming lifecycle in the regression harness.
+
 ## 0.2.0 - 2026-07-20
 
 - Use Pi's official `getAgentDir()` API and `PI_CODING_AGENT_DIR` for
