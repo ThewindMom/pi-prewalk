@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { initialState, resolveTarget } from "../src/index.ts";
+import { initialState, parsePrewalkConfig, resolveTarget } from "../src/index.ts";
 import { createHarness, fakeModel } from "./harness.ts";
 
 describe("pi-prewalk", () => {
@@ -8,6 +8,133 @@ describe("pi-prewalk", () => {
     expect(resolveTarget("b/fast", models).model).toBe(models[1]);
     expect(resolveTarget("unique", models).model).toBe(models[2]);
     expect(resolveTarget("fast", models).error).toContain("ambiguous");
+  });
+
+  test("validates dedicated configuration", () => {
+    expect(parsePrewalkConfig({
+      enabled: true,
+      planner: { model: "frontier/architect", thinking: "medium" },
+      executor: { model: "fast/executor", thinking: "low" },
+    })).toEqual({
+      enabled: true,
+      planner: { model: "frontier/architect", thinking: "medium" },
+      executor: { model: "fast/executor", thinking: "low" },
+    });
+    expect(() => parsePrewalkConfig({ enabled: true })).toThrow("executor");
+    expect(() => parsePrewalkConfig({
+      enabled: false,
+      executor: { model: "fast/executor", thinking: "turbo" },
+    })).toThrow("thinking");
+    expect(() => parsePrewalkConfig({ enabled: false, surprise: true })).toThrow("unknown");
+  });
+
+  test("new sessions apply configured planner and executor settings", async () => {
+    const harness = createHarness({
+      config: {
+        enabled: true,
+        planner: { model: "frontier/architect", thinking: "medium" },
+        executor: { model: "fast/executor", thinking: "low" },
+      },
+      currentModel: fakeModel("other", "default"),
+      models: [
+        fakeModel("other", "default"),
+        fakeModel("frontier", "architect"),
+        fakeModel("fast", "executor"),
+      ],
+    });
+    await harness.start();
+
+    expect(harness.modelChanges.map((model) => `${model.provider}/${model.id}`)).toEqual([
+      "frontier/architect",
+    ]);
+    expect(harness.thinkingChanges).toEqual(["medium"]);
+    expect(harness.statuses.get("pi-prewalk")).toContain("fast/executor");
+
+    await harness.turn([{ toolName: "todo" }, { toolName: "edit" }]);
+    expect(harness.modelChanges.map((model) => `${model.provider}/${model.id}`)).toEqual([
+      "frontier/architect",
+      "fast/executor",
+    ]);
+    expect(harness.thinkingChanges).toEqual(["medium", "low"]);
+  });
+
+  test("resume and reload preserve session model and handoff state", async () => {
+    const persisted = {
+      ...initialState(),
+      phase: "armed" as const,
+      target: { provider: "fast", id: "executor" },
+      executorThinking: "high" as const,
+    };
+    const resumedModel = fakeModel("resumed", "session-model");
+    const harness = createHarness({
+      config: {
+        enabled: true,
+        planner: { model: "frontier/architect", thinking: "medium" },
+        executor: { model: "fast/executor", thinking: "low" },
+      },
+      entries: [{ type: "custom", customType: "pi-prewalk-state", data: persisted }],
+      currentModel: resumedModel,
+      models: [resumedModel, fakeModel("frontier", "architect"), fakeModel("fast", "executor")],
+    });
+
+    await harness.start("resume");
+    await harness.start("reload");
+    expect(harness.currentModel).toBe(resumedModel);
+    expect(harness.modelChanges).toHaveLength(0);
+    expect(harness.thinkingChanges).toHaveLength(0);
+    expect(harness.statuses.get("pi-prewalk")).toContain("fast/executor");
+  });
+
+  test("CLI flags override config and can disable automatic arming", async () => {
+    const config = {
+      enabled: true,
+      planner: { model: "frontier/architect", thinking: "medium" },
+      executor: { model: "fast/executor", thinking: "low" },
+    };
+    const disabled = createHarness({ config });
+    disabled.flags.set("no-prewalk", true);
+    await disabled.start();
+    expect(disabled.statuses.get("pi-prewalk")).toBeUndefined();
+
+    const modelOnly = createHarness({ config, activeTools: ["write"] });
+    modelOnly.flags.set("prewalk-into", "frontier/architect");
+    await modelOnly.start();
+    await modelOnly.turn([{ toolName: "write" }]);
+    expect(modelOnly.thinkingChanges).toEqual(["medium", "low"]);
+
+    const overridden = createHarness({ config, argv: ["--model", "other/custom", "--thinking", "high"] });
+    overridden.flags.set("prewalk-into", "frontier/architect");
+    overridden.flags.set("prewalk-executor-thinking", "max");
+    await overridden.start();
+    expect(overridden.modelChanges).toHaveLength(0);
+    expect(overridden.thinkingChanges).toHaveLength(0);
+    expect(overridden.statuses.get("pi-prewalk")).toContain("frontier/architect");
+    await overridden.turn([{ toolName: "todo" }, { toolName: "write" }]);
+    expect(overridden.thinkingChanges).toEqual(["max"]);
+  });
+
+  test("session command overrides configured executor thinking", async () => {
+    const harness = createHarness({
+      config: {
+        enabled: false,
+        executor: { model: "fast/executor", thinking: "low" },
+      },
+      activeTools: ["write"],
+    });
+    await harness.start();
+    await harness.command("fast/executor high");
+    await harness.turn([{ toolName: "write" }]);
+    expect(harness.thinkingChanges).toEqual(["high"]);
+  });
+
+  test("invalid configuration is reported without changing the session", async () => {
+    const harness = createHarness({ config: { enabled: true } });
+    await harness.start();
+    expect(harness.notifications[0]).toEqual({
+      message: expect.stringContaining("Invalid prewalk.json"),
+      level: "error",
+    });
+    expect(harness.modelChanges).toHaveLength(0);
   });
 
   test("manual command arms and injects the hidden plan", async () => {

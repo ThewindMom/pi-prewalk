@@ -1,6 +1,7 @@
 import type { Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import prewalkExtension from "../src/index.ts";
+import type { PrewalkThinkingLevel } from "../src/index.ts";
+import { createPrewalkExtension } from "../src/index.ts";
 
 type Handler = (event: any, context: ExtensionContext) => Promise<any> | any;
 type Command = { handler: (args: string, context: ExtensionContext) => Promise<void> | void };
@@ -29,6 +30,10 @@ export function createHarness(options?: {
   entries?: Array<{ type: string; customType?: string; data?: unknown }>;
   activeTools?: string[];
   models?: Model<any>[];
+  config?: unknown;
+  configError?: Error;
+  argv?: string[];
+  currentModel?: Model<any>;
 }) {
   const handlers = new Map<string, Handler[]>();
   const commands = new Map<string, Command>();
@@ -38,9 +43,10 @@ export function createHarness(options?: {
   const notifications: Array<{ message: string; level?: string }> = [];
   const statuses = new Map<string, string | undefined>();
   const modelChanges: Model<any>[] = [];
+  const thinkingChanges: PrewalkThinkingLevel[] = [];
   const models = options?.models ?? [fakeModel("frontier", "architect"), fakeModel("fast", "executor")];
   let activeTools = options?.activeTools ?? ["read", "bash", "edit", "write", "todo"];
-  let currentModel = models[0];
+  let currentModel = options?.currentModel ?? models[0];
 
   const context = {
     ui: {
@@ -89,10 +95,21 @@ export function createHarness(options?: {
       modelChanges.push(model);
       return true;
     },
-    setThinkingLevel: () => undefined,
+    getThinkingLevel: () => thinkingChanges.at(-1) ?? "off",
+    setThinkingLevel: (level: PrewalkThinkingLevel) => thinkingChanges.push(level),
   } as unknown as ExtensionAPI;
 
-  prewalkExtension(pi);
+  const readConfig = options && ("config" in options || "configError" in options)
+    ? () => {
+      if (options.configError) throw options.configError;
+      return JSON.stringify(options.config);
+    }
+    : () => {
+      const error = new Error("missing") as Error & { code: string };
+      error.code = "ENOENT";
+      throw error;
+    };
+  createPrewalkExtension({ configPath: "/test/prewalk.json", readConfig, argv: options?.argv ?? [] })(pi);
 
   async function emit(name: string, event: unknown): Promise<any[]> {
     const results: any[] = [];
@@ -106,6 +123,7 @@ export function createHarness(options?: {
     notifications,
     statuses,
     modelChanges,
+    thinkingChanges,
     flags,
     get currentModel() {
       return currentModel;
@@ -113,8 +131,8 @@ export function createHarness(options?: {
     setActiveTools(tools: string[]) {
       activeTools = tools;
     },
-    async start() {
-      await emit("session_start", { type: "session_start" });
+    async start(reason: "startup" | "reload" | "new" | "resume" | "fork" = "startup") {
+      await emit("session_start", { type: "session_start", reason });
     },
     async command(args: string) {
       const command = commands.get("prewalk");

@@ -1,5 +1,8 @@
 import type { Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { PREWALK_CHECKLIST_PROMPT, PREWALK_CONTINUE_PROMPT, PREWALK_PLAN_PROMPT } from "./prompts.ts";
 
 const ENTRY_TYPE = "pi-prewalk-state";
@@ -9,6 +12,105 @@ const CONTINUE_MESSAGE_TYPE = "pi-prewalk-continue";
 const CHECKLIST_MESSAGE_TYPE = "pi-prewalk-checklist";
 const ACTION_TOOLS = new Set(["edit", "write"]);
 const APPLY_PATCH_COMMAND = /(?:^|(?:&&|\|\||\||;|\n)\s*)(?:[^\s;&|]*\/)?apply_patch(?=\s*(?:$|&&|\|\||;|\n|<<))/m;
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
+export type PrewalkThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
+export interface PrewalkModelConfig {
+  model: string;
+  thinking?: PrewalkThinkingLevel;
+}
+
+export interface PrewalkConfig {
+  enabled: boolean;
+  planner?: PrewalkModelConfig;
+  executor?: PrewalkModelConfig;
+}
+
+export interface PrewalkRuntimeOptions {
+  configPath?: string;
+  argv?: string[];
+  readConfig?: (path: string) => string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseModelConfig(value: unknown, field: string): PrewalkModelConfig | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) throw new Error(`"${field}" must be an object.`);
+  const keys = Object.keys(value);
+  if (keys.some((key) => key !== "model" && key !== "thinking")) {
+    throw new Error(`"${field}" contains an unknown setting.`);
+  }
+  if (typeof value.model !== "string" || !value.model.trim()) {
+    throw new Error(`"${field}.model" must be a non-empty provider/model string.`);
+  }
+  if (value.thinking !== undefined && (
+    typeof value.thinking !== "string" || !THINKING_LEVELS.has(value.thinking)
+  )) {
+    throw new Error(`"${field}.thinking" must be a valid thinking level.`);
+  }
+  return {
+    model: value.model.trim(),
+    thinking: value.thinking as PrewalkThinkingLevel | undefined,
+  };
+}
+
+export function parsePrewalkConfig(value: unknown): PrewalkConfig {
+  if (!isRecord(value)) throw new Error("Configuration must be a JSON object.");
+  const keys = Object.keys(value);
+  if (keys.some((key) => key !== "enabled" && key !== "planner" && key !== "executor")) {
+    throw new Error("Configuration contains an unknown setting.");
+  }
+  if (typeof value.enabled !== "boolean") throw new Error('"enabled" must be a boolean.');
+  const config = {
+    enabled: value.enabled,
+    planner: parseModelConfig(value.planner, "planner"),
+    executor: parseModelConfig(value.executor, "executor"),
+  };
+  if (config.enabled && !config.executor) {
+    throw new Error('"executor" is required when Prewalk is enabled.');
+  }
+  return config;
+}
+
+function expandHome(path: string): string {
+  return path === "~" ? homedir() : path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
+}
+
+export function defaultConfigPath(): string {
+  const agentDir = process.env.SENPI_CODING_AGENT_DIR;
+  return join(agentDir ? expandHome(agentDir) : join(homedir(), ".senpi", "agent"), "prewalk.json");
+}
+
+export function loadPrewalkConfig(
+  path = defaultConfigPath(),
+  readConfig: (path: string) => string = (configPath) => readFileSync(configPath, "utf8"),
+): { config?: PrewalkConfig; error?: string } {
+  try {
+    return { config: parsePrewalkConfig(JSON.parse(readConfig(path))) };
+  } catch (error) {
+    if (isRecord(error) && error.code === "ENOENT") return {};
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function hasCliOption(argv: string[], names: string[]): boolean {
+  return argv.some((argument) => names.some((name) => argument === name || argument.startsWith(`${name}=`)));
+}
+
+function parseCommandTarget(input: string): { spec: string; thinking?: PrewalkThinkingLevel; error?: string } {
+  const parts = input.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { spec: "" };
+  if (parts.length > 2) return { spec: "", error: "Usage: /prewalk <provider/model> [thinking]." };
+  const thinking = parts[1];
+  if (thinking !== undefined && !THINKING_LEVELS.has(thinking)) {
+    return { spec: "", error: `"${thinking}" is not a valid thinking level.` };
+  }
+  return { spec: parts[0], thinking: thinking as PrewalkThinkingLevel | undefined };
+}
 
 function shellStructure(command: string): string {
   let quote: "'" | '"' | undefined;
@@ -90,6 +192,7 @@ export interface PrewalkState {
   version: 1;
   phase: PrewalkPhase;
   target?: PrewalkTarget;
+  executorThinking?: PrewalkThinkingLevel;
   planMessageType?: string;
   planInjected: boolean;
   continuePending: boolean;
@@ -112,6 +215,7 @@ function isState(value: unknown): value is PrewalkState {
   return (
     candidate.version === 1 &&
     (candidate.phase === "idle" || candidate.phase === "armed" || candidate.phase === "switched") &&
+    (candidate.executorThinking === undefined || THINKING_LEVELS.has(candidate.executorThinking)) &&
     typeof candidate.planInjected === "boolean" &&
     typeof candidate.continuePending === "boolean" &&
     typeof candidate.todoSeen === "boolean" &&
@@ -143,22 +247,39 @@ export function resolveTarget(spec: string, models: Model<any>[]): { model?: Mod
   return { error: `Model \"${query}\" is not available.` };
 }
 
-function configuredTarget(pi: ExtensionAPI): string {
+function configuredTarget(pi: ExtensionAPI, config: PrewalkConfig | undefined): PrewalkModelConfig | undefined {
   const flag = pi.getFlag("prewalk-into");
-  if (typeof flag === "string" && flag.trim()) return flag.trim();
-  return process.env.PI_PREWALK_MODEL?.trim() ?? "";
+  const thinkingFlag = pi.getFlag("prewalk-executor-thinking");
+  const thinking = typeof thinkingFlag === "string" && THINKING_LEVELS.has(thinkingFlag)
+    ? thinkingFlag as PrewalkThinkingLevel
+    : undefined;
+  if (typeof flag === "string" && flag.trim()) {
+    return { model: flag.trim(), thinking: thinking ?? config?.executor?.thinking };
+  }
+  if (config?.executor) return { ...config.executor, thinking: thinking ?? config.executor.thinking };
+  const environmentModel = process.env.PI_PREWALK_MODEL?.trim();
+  return environmentModel ? { model: environmentModel, thinking } : undefined;
 }
 
-export default function prewalkExtension(pi: ExtensionAPI): void {
+function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): void {
   let state = initialState();
+  let config: PrewalkConfig | undefined;
 
   pi.registerFlag("prewalk", {
     description: "Start with Prewalk enabled",
     type: "boolean",
-    default: false,
+  });
+  pi.registerFlag("no-prewalk", {
+    description: "Disable automatic Prewalk configuration",
+    type: "boolean",
   });
   pi.registerFlag("prewalk-into", {
     description: "Executor model for Prewalk (provider/model)",
+    type: "string",
+    default: "",
+  });
+  pi.registerFlag("prewalk-executor-thinking", {
+    description: "Executor thinking level for Prewalk",
     type: "string",
     default: "",
   });
@@ -208,7 +329,12 @@ export default function prewalkExtension(pi: ExtensionAPI): void {
     return resolved;
   }
 
-  function arm(ctx: ExtensionContext, model: Model<any>, injectImmediately: boolean): void {
+  function arm(
+    ctx: ExtensionContext,
+    model: Model<any>,
+    injectImmediately: boolean,
+    executorThinking?: PrewalkThinkingLevel,
+  ): void {
     if (state.phase === "armed") {
       ctx.ui.notify(`Prewalk is already armed for ${targetLabel(state.target)}.`, "warning");
       return;
@@ -217,6 +343,7 @@ export default function prewalkExtension(pi: ExtensionAPI): void {
       version: 1,
       phase: "armed",
       target: { provider: model.provider, id: model.id },
+      executorThinking,
       planMessageType: `${PLAN_MESSAGE_PREFIX}:${crypto.randomUUID()}`,
       planInjected: false,
       continuePending: false,
@@ -262,10 +389,16 @@ export default function prewalkExtension(pi: ExtensionAPI): void {
         return;
       }
 
-      const spec = input || configuredTarget(pi);
+      const commandTarget = parseCommandTarget(input);
+      if (commandTarget.error) {
+        ctx.ui.notify(commandTarget.error, "warning");
+        return;
+      }
+      const configured = configuredTarget(pi, config);
+      const spec = commandTarget.spec || configured?.model;
       if (!spec) {
         ctx.ui.notify(
-          "Usage: /prewalk <provider/model>. Configure a default with --prewalk-into or PI_PREWALK_MODEL.",
+          "Usage: /prewalk <provider/model> [thinking]. Configure a default with prewalk.json or --prewalk-into.",
           "warning",
         );
         return;
@@ -275,20 +408,47 @@ export default function prewalkExtension(pi: ExtensionAPI): void {
         ctx.ui.notify(resolved.error ?? `Unable to resolve ${spec}.`, "error");
         return;
       }
-      arm(ctx, resolved.model, true);
+      arm(ctx, resolved.model, true, commandTarget.thinking ?? configured?.thinking);
     },
   });
 
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", async (event, ctx) => {
     restore(ctx);
-    if (state.phase === "idle" && pi.getFlag("prewalk") === true) {
-      const spec = configuredTarget(pi);
-      if (!spec) {
-        ctx.ui.notify("--prewalk requires --prewalk-into <provider/model> or PI_PREWALK_MODEL.", "warning");
+    const loaded = loadPrewalkConfig(options.configPath, options.readConfig);
+    config = loaded.config;
+    if (loaded.error) ctx.ui.notify(`Invalid prewalk.json: ${loaded.error}`, "error");
+
+    const entries = ctx.sessionManager.getEntries();
+    const isNewSession = event.reason === "new" || (event.reason === "startup" && entries.length === 0);
+    const cliDisabled = pi.getFlag("no-prewalk") === true;
+    const cliEnabled = pi.getFlag("prewalk") === true;
+    const automaticallyEnabled = !cliDisabled && (cliEnabled || config?.enabled === true);
+
+    if (state.phase === "idle" && isNewSession && automaticallyEnabled) {
+      const argv = options.argv ?? process.argv.slice(2);
+      if (config?.planner && !hasCliOption(argv, ["--model", "-m"])) {
+        const planner = findModel(ctx, config.planner.model);
+        if (!planner.model || !await pi.setModel(planner.model)) {
+          ctx.ui.notify(planner.error ?? `Unable to select planner ${config.planner.model}.`, "error");
+          updateStatus(ctx);
+          return;
+        }
+      }
+      if (
+        config?.planner?.thinking &&
+        !hasCliOption(argv, ["--thinking"]) &&
+        !hasCliOption(argv, ["--model", "-m"])
+      ) {
+        pi.setThinkingLevel(config.planner.thinking);
+      }
+
+      const target = configuredTarget(pi, config);
+      if (!target) {
+        ctx.ui.notify("Prewalk requires an executor in prewalk.json or --prewalk-into <provider/model>.", "warning");
       } else {
-        const resolved = findModel(ctx, spec);
-        if (resolved.model) arm(ctx, resolved.model, false);
-        else ctx.ui.notify(resolved.error ?? `Unable to resolve ${spec}.`, "error");
+        const resolved = findModel(ctx, target.model);
+        if (resolved.model) arm(ctx, resolved.model, false, target.thinking);
+        else ctx.ui.notify(resolved.error ?? `Unable to resolve ${target.model}.`, "error");
       }
     }
     updateStatus(ctx);
@@ -364,6 +524,7 @@ export default function prewalkExtension(pi: ExtensionAPI): void {
       ctx.ui.notify(`Prewalk could not switch to ${targetLabel(target)}.`, "error");
       return;
     }
+    if (state.executorThinking) pi.setThinkingLevel(state.executorThinking);
 
     state = { ...state, phase: "switched" };
     persist();
@@ -380,3 +541,9 @@ export default function prewalkExtension(pi: ExtensionAPI): void {
     ctx.ui.setStatus(STATUS_KEY, undefined);
   });
 }
+
+export function createPrewalkExtension(options: PrewalkRuntimeOptions = {}) {
+  return (pi: ExtensionAPI): void => prewalkExtension(pi, options);
+}
+
+export default createPrewalkExtension();

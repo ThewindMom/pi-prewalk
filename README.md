@@ -50,14 +50,34 @@ before installation.
 
 ## Use
 
-Arm Prewalk inside an existing session:
+Create `~/.senpi/agent/prewalk.json` to enable Prewalk for new sessions:
 
-```text
-/prewalk google/gemini-2.5-flash
+```json
+{
+  "enabled": true,
+  "planner": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "medium"
+  },
+  "executor": {
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "low"
+  }
+}
 ```
 
-The model must already be available and authenticated in Pi. A bare model id is
-accepted when it identifies exactly one available model:
+The models must already be available and authenticated in Pi. The planner is
+selected when a new session starts. After the first todo-gated mutation,
+Prewalk selects the executor and its thinking level.
+
+Arm Prewalk manually inside an existing session:
+
+```text
+/prewalk google/gemini-2.5-flash low
+```
+
+The thinking level is optional. A bare model id is accepted when it identifies
+exactly one available model:
 
 ```text
 /prewalk gemini-2.5-flash
@@ -73,7 +93,9 @@ Other commands:
 Start Pi with Prewalk enabled:
 
 ```bash
-pi --prewalk --prewalk-into google/gemini-2.5-flash
+pi --prewalk \
+  --prewalk-into google/gemini-2.5-flash \
+  --prewalk-executor-thinking low
 ```
 
 Or configure the default target through the environment:
@@ -110,15 +132,37 @@ most one handoff because switching occurs at `turn_end`.
 
 | Surface | Meaning |
 | --- | --- |
-| `/prewalk <provider/model>` | Arm immediately in the current session |
+| `~/.senpi/agent/prewalk.json` | Persistent planner and executor defaults |
+| `/prewalk <provider/model> [thinking]` | Arm immediately in the current session |
 | `/prewalk status` | Show idle, armed, or switched state |
 | `/prewalk off` | Cancel an armed handoff |
 | `--prewalk` | Arm automatically at session start |
+| `--no-prewalk` | Disable automatic arming for this process |
 | `--prewalk-into <provider/model>` | Set the automatic executor model |
+| `--prewalk-executor-thinking <level>` | Set the automatic executor thinking level |
 | `PI_PREWALK_MODEL` | Fallback executor model when the flag is omitted |
 
-State is stored in the Pi session. If the session is resumed, the extension
-continues filtering the hidden planning checkpoint from executor context.
+Valid thinking levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`,
+and `max`. Unknown settings, invalid types, unsupported thinking-level names,
+and an enabled configuration without an executor are rejected with a visible
+error. Set `SENPI_CODING_AGENT_DIR` to relocate both the agent directory and
+`prewalk.json`.
+
+Precedence, from highest to lowest:
+
+1. Session-local `/prewalk` and `/prewalk off` commands.
+2. CLI flags. Standard `--model` and `--thinking` protect the planner choice;
+   Prewalk-specific flags control automatic enablement and the executor.
+3. `prewalk.json`.
+4. Pi/Senpi model and thinking defaults.
+
+`PI_PREWALK_MODEL` remains a legacy executor fallback when neither
+`--prewalk-into` nor `prewalk.json` supplies one.
+
+Persistent configuration applies only to genuinely new sessions, including
+`/new`. Resume, fork, and `/reload` preserve the current session model,
+thinking level, and persisted Prewalk state instead of resetting them.
+`/prewalk` remains available as a session-local override in any session.
 
 ## Compatibility
 
