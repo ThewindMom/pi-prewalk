@@ -361,7 +361,7 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     persist();
     updateStatus(ctx);
     ctx.ui.notify(
-      `Prewalk armed: ${targetLabel(state.target)} after the first successful edit/write once todo is ready.`,
+      `Prewalk armed: ${targetLabel(state.target)} after the first successful edit, write, or apply_patch once todo is ready.`,
       "info",
     );
     if (injectImmediately) injectPlan();

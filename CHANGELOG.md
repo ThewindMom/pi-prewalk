@@ -7,6 +7,7 @@
 - Apply persistent defaults only to new sessions while preserving model,
   thinking, and Prewalk state on resume, fork, and reload.
 - Add explicit CLI and session-local overrides with documented precedence.
+- Recognize Senpi's direct `apply_patch` tool as a successful mutation.
 - Recognize successful `bash`-driven `apply_patch` mutations so Senpi can hand
   off after its required patch workflow.
 - Keep ordinary and failed shell commands from triggering the model switch.
