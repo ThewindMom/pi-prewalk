@@ -85,6 +85,32 @@ describe("pi-prewalk", () => {
     expect(harness.statuses.get("pi-prewalk")).toContain("fast/executor");
   });
 
+  test("startup metadata is new but startup conversation is resumed", async () => {
+    const config = {
+      enabled: true,
+      planner: { model: "frontier/architect", thinking: "medium" },
+      executor: { model: "fast/executor", thinking: "low" },
+    };
+    const metadataOnly = createHarness({
+      config,
+      entries: [
+        { type: "model_change", provider: "other", modelId: "default" },
+        { type: "thinking_level_change", thinkingLevel: "off" },
+      ],
+    });
+    await metadataOnly.start();
+    expect(metadataOnly.statuses.get("pi-prewalk")).toContain("fast/executor");
+
+    const withConversation = createHarness({
+      config,
+      entries: [{ type: "message", message: { role: "user", content: "existing session" } }],
+    });
+    await withConversation.start();
+    expect(withConversation.statuses.get("pi-prewalk")).toBeUndefined();
+    expect(withConversation.modelChanges).toHaveLength(0);
+    expect(withConversation.thinkingChanges).toHaveLength(0);
+  });
+
   test("CLI flags override config and can disable automatic arming", async () => {
     const config = {
       enabled: true,

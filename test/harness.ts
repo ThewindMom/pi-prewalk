@@ -27,7 +27,7 @@ export function fakeModel(provider: string, id: string): Model<any> {
 }
 
 export function createHarness(options?: {
-  entries?: Array<{ type: string; customType?: string; data?: unknown }>;
+  entries?: Array<{ type: string; customType?: string; data?: unknown; [key: string]: unknown }>;
   activeTools?: string[];
   models?: Model<any>[];
   config?: unknown;

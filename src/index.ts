@@ -101,6 +101,14 @@ function hasCliOption(argv: string[], names: string[]): boolean {
   return argv.some((argument) => names.some((name) => argument === name || argument.startsWith(`${name}=`)));
 }
 
+function hasConversation(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): boolean {
+  return entries.some((entry) => (
+    entry.type === "message" ||
+    entry.type === "compaction" ||
+    entry.type === "branch_summary"
+  ));
+}
+
 function parseCommandTarget(input: string): { spec: string; thinking?: PrewalkThinkingLevel; error?: string } {
   const parts = input.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { spec: "" };
@@ -419,7 +427,7 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     if (loaded.error) ctx.ui.notify(`Invalid prewalk.json: ${loaded.error}`, "error");
 
     const entries = ctx.sessionManager.getEntries();
-    const isNewSession = event.reason === "new" || (event.reason === "startup" && entries.length === 0);
+    const isNewSession = event.reason === "new" || (event.reason === "startup" && !hasConversation(entries));
     const cliDisabled = pi.getFlag("no-prewalk") === true;
     const cliEnabled = pi.getFlag("prewalk") === true;
     const automaticallyEnabled = !cliDisabled && (cliEnabled || config?.enabled === true);
