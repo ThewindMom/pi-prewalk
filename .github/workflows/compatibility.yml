@@ -1,0 +1,50 @@
+name: Pi compatibility
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Pi ${{ matrix.pi-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        pi-version:
+          - "0.80.8"
+          - "0.80.10"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - run: bun install --frozen-lockfile
+      - name: Select Pi version
+        run: >-
+          bun add --no-save
+          @earendil-works/pi-agent-core@${{ matrix.pi-version }}
+          @earendil-works/pi-ai@${{ matrix.pi-version }}
+          @earendil-works/pi-coding-agent@${{ matrix.pi-version }}
+      - run: bun run check
+
+  package:
+    name: Package manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - run: bun install --frozen-lockfile
+      - run: bun run package:check

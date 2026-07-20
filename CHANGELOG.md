@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - 2026-07-20
+
+- Add extension-owned `role:<name>` model aliases resolved through Pi's public
+  model registry without importing private Pi internals.
+- Expand `/prewalk status` with resolved target, thinking, todo gate, planning
+  checkpoint, and last handoff diagnostics.
+- Preserve an armed handoff when model switching temporarily fails.
+- Cover missing credentials and parallel successful mutations.
+- Add Pi 0.80.8 and 0.80.10 compatibility jobs plus package-manifest checks.
+
 ## 0.2.1 - 2026-07-20
 
 - Queue planning and continuation prompts while Pi is still streaming so the

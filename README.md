@@ -42,15 +42,22 @@ pi install git:github.com/ThewindMom/pi-prewalk
 Restart Pi after installation. To pin this release:
 
 ```bash
-pi install git:github.com/ThewindMom/pi-prewalk@v0.2.1
+pi install git:github.com/ThewindMom/pi-prewalk@v0.3.0
 ```
 
 Pi packages execute code with your user permissions. Review third-party source
 before installation.
 
-Pi discovers user extensions under `~/.pi/agent/extensions/`. For local
-development, load this checkout directly with `pi -e ./src/index.ts`; packages
-installed with `pi install` are managed by Pi.
+`pi install` is the canonical installation path: Pi records the package,
+installs its dependencies, and makes it available to `pi update` and
+`pi config`. Pi also discovers user extensions under
+`~/.pi/agent/extensions/`; for local development only, load this checkout
+directly with `pi -e ./src/index.ts`.
+
+```bash
+pi update git:github.com/ThewindMom/pi-prewalk@v0.3.0
+pi remove git:github.com/ThewindMom/pi-prewalk@v0.3.0
+```
 
 ## Use
 
@@ -74,6 +81,28 @@ The models must already be available and authenticated in Pi. The planner is
 selected when a new session starts. After the first todo-gated mutation,
 Prewalk selects the executor and its thinking level.
 
+Pi does not currently expose native model roles through its public extension
+API. pi-prewalk therefore supports explicit extension-owned aliases without
+using Pi internals:
+
+```json
+{
+  "enabled": true,
+  "roles": {
+    "planner": "openai-codex/gpt-5.6-sol",
+    "smol": "openai-codex/gpt-5.6-luna"
+  },
+  "planner": {
+    "model": "role:planner",
+    "thinking": "high"
+  },
+  "executor": {
+    "model": "role:smol",
+    "thinking": "high"
+  }
+}
+```
+
 Arm Prewalk manually inside an existing session:
 
 ```text
@@ -93,6 +122,10 @@ Other commands:
 /prewalk status
 /prewalk off
 ```
+
+`/prewalk status` reports the configured alias and resolved model, executor
+thinking, todo-gate readiness, planning-checkpoint state, and the tool that
+triggered the completed handoff.
 
 Start Pi with Prewalk enabled:
 
@@ -170,7 +203,7 @@ thinking level, and persisted Prewalk state instead of resetting them.
 
 ## Compatibility
 
-- Pi `0.80.10` or later is the tested baseline.
+- Pi `0.80.8` and `0.80.10` are covered by the compatibility workflow.
 - The extension uses Pi's public `getAgentDir()` API and declares the official
   `@earendil-works/pi-coding-agent` package as its runtime dependency.
 - The target model must be present in Pi's model registry with configured

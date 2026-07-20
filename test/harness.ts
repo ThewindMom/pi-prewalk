@@ -34,6 +34,8 @@ export function createHarness(options?: {
   configError?: Error;
   argv?: string[];
   currentModel?: Model<any>;
+  setModelResult?: boolean;
+  unauthenticatedModels?: string[];
 }) {
   const handlers = new Map<string, Handler[]>();
   const commands = new Map<string, Command>();
@@ -63,7 +65,9 @@ export function createHarness(options?: {
     modelRegistry: {
       getAvailable: () => models,
       find: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
-      hasConfiguredAuth: () => true,
+      hasConfiguredAuth: (model: Model<any>) => !options?.unauthenticatedModels?.includes(
+        `${model.provider}/${model.id}`,
+      ),
     },
     get model() {
       return currentModel;
@@ -96,6 +100,7 @@ export function createHarness(options?: {
     },
     getActiveTools: () => activeTools,
     setModel: async (model: Model<any>) => {
+      if (options?.setModelResult === false) return false;
       currentModel = model;
       modelChanges.push(model);
       return true;

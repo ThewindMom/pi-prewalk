@@ -24,6 +24,7 @@ export interface PrewalkConfig {
   enabled: boolean;
   planner?: PrewalkModelConfig;
   executor?: PrewalkModelConfig;
+  roles?: Record<string, string>;
 }
 
 export interface PrewalkRuntimeOptions {
@@ -60,14 +61,31 @@ function parseModelConfig(value: unknown, field: string): PrewalkModelConfig | u
 export function parsePrewalkConfig(value: unknown): PrewalkConfig {
   if (!isRecord(value)) throw new Error("Configuration must be a JSON object.");
   const keys = Object.keys(value);
-  if (keys.some((key) => key !== "enabled" && key !== "planner" && key !== "executor")) {
+  if (keys.some((key) => (
+    key !== "enabled" && key !== "planner" && key !== "executor" && key !== "roles"
+  ))) {
     throw new Error("Configuration contains an unknown setting.");
   }
   if (typeof value.enabled !== "boolean") throw new Error('"enabled" must be a boolean.');
+  let roles: Record<string, string> | undefined;
+  if (value.roles !== undefined) {
+    if (!isRecord(value.roles)) throw new Error('"roles" must be an object.');
+    roles = {};
+    for (const [name, target] of Object.entries(value.roles)) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name)) {
+        throw new Error(`Invalid role name "${name}".`);
+      }
+      if (typeof target !== "string" || !target.trim()) {
+        throw new Error(`Role "${name}" must resolve to a non-empty model spec.`);
+      }
+      roles[name] = target.trim();
+    }
+  }
   const config = {
     enabled: value.enabled,
     planner: parseModelConfig(value.planner, "planner"),
     executor: parseModelConfig(value.executor, "executor"),
+    roles,
   };
   if (config.enabled && !config.executor) {
     throw new Error('"executor" is required when Prewalk is enabled.');
@@ -202,12 +220,14 @@ export interface PrewalkState {
   version: 1;
   phase: PrewalkPhase;
   target?: PrewalkTarget;
+  targetSpec?: string;
   executorThinking?: PrewalkThinkingLevel;
   planMessageType?: string;
   planInjected: boolean;
   continuePending: boolean;
   todoSeen: boolean;
   scrubPlan: boolean;
+  lastHandoffTool?: string;
 }
 
 export const initialState = (): PrewalkState => ({
@@ -225,11 +245,13 @@ function isState(value: unknown): value is PrewalkState {
   return (
     candidate.version === 1 &&
     (candidate.phase === "idle" || candidate.phase === "armed" || candidate.phase === "switched") &&
+    (candidate.targetSpec === undefined || typeof candidate.targetSpec === "string") &&
     (candidate.executorThinking === undefined || THINKING_LEVELS.has(candidate.executorThinking)) &&
     typeof candidate.planInjected === "boolean" &&
     typeof candidate.continuePending === "boolean" &&
     typeof candidate.todoSeen === "boolean" &&
-    typeof candidate.scrubPlan === "boolean"
+    typeof candidate.scrubPlan === "boolean" &&
+    (candidate.lastHandoffTool === undefined || typeof candidate.lastHandoffTool === "string")
   );
 }
 
@@ -255,6 +277,19 @@ export function resolveTarget(spec: string, models: Model<any>[]): { model?: Mod
     return { error: `Model id \"${query}\" is ambiguous; use provider/model.` };
   }
   return { error: `Model \"${query}\" is not available.` };
+}
+
+export function resolveRoleTarget(
+  spec: string,
+  roles?: Record<string, string>,
+): { spec?: string; error?: string } {
+  if (!spec.startsWith("role:")) return { spec };
+  const name = spec.slice("role:".length);
+  if (!name) return { error: "Role target must use role:<name>." };
+  const target = roles?.[name];
+  return target
+    ? { spec: target }
+    : { error: `Unknown Prewalk role "${name}". Configure roles.${name} in prewalk.json.` };
 }
 
 function configuredTarget(pi: ExtensionAPI, config: PrewalkConfig | undefined): PrewalkModelConfig | undefined {
@@ -331,7 +366,9 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
   }
 
   function findModel(ctx: ExtensionContext, spec: string): { model?: Model<any>; error?: string } {
-    const resolved = resolveTarget(spec, ctx.modelRegistry.getAvailable());
+    const expanded = resolveRoleTarget(spec, config?.roles);
+    if (!expanded.spec || expanded.error) return expanded;
+    const resolved = resolveTarget(expanded.spec, ctx.modelRegistry.getAvailable());
     if (!resolved.model || resolved.error) return resolved;
     if (!ctx.modelRegistry.hasConfiguredAuth(resolved.model)) {
       return { error: `No configured credentials for ${resolved.model.provider}/${resolved.model.id}.` };
@@ -344,6 +381,7 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     model: Model<any>,
     injectImmediately: boolean,
     executorThinking?: PrewalkThinkingLevel,
+    targetSpec?: string,
   ): void {
     if (state.phase === "armed") {
       ctx.ui.notify(`Prewalk is already armed for ${targetLabel(state.target)}.`, "warning");
@@ -353,12 +391,14 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
       version: 1,
       phase: "armed",
       target: { provider: model.provider, id: model.id },
+      targetSpec,
       executorThinking,
       planMessageType: `${PLAN_MESSAGE_PREFIX}:${crypto.randomUUID()}`,
       planInjected: false,
       continuePending: false,
       todoSeen: false,
       scrubPlan: true,
+      lastHandoffTool: undefined,
     };
     persist();
     updateStatus(ctx);
@@ -384,11 +424,19 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     handler: async (args, ctx) => {
       const input = args.trim();
       if (input === "status") {
+        const resolvedTarget = targetLabel(state.target);
+        const configuredLabel = state.targetSpec && state.targetSpec !== resolvedTarget
+          ? `${state.targetSpec} -> ${resolvedTarget}`
+          : resolvedTarget;
+        const thinking = state.executorThinking ? `; thinking=${state.executorThinking}` : "";
+        const todoReady = state.todoSeen || !pi.getActiveTools().includes("todo");
+        const gate = `; todo=${todoReady ? "ready" : "waiting"}; plan=${state.planInjected ? "injected" : "pending"}`;
+        const handoff = state.lastHandoffTool ? ` after ${state.lastHandoffTool}` : "";
         ctx.ui.notify(
           state.phase === "armed"
-            ? `Prewalk armed for ${targetLabel(state.target)}.`
+            ? `Prewalk armed for ${configuredLabel}${thinking}${gate}.`
             : state.phase === "switched"
-              ? `Prewalk switched to ${targetLabel(state.target)}.`
+              ? `Prewalk switched to ${configuredLabel}${thinking}${handoff}.`
               : "Prewalk is idle.",
           "info",
         );
@@ -418,7 +466,7 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
         ctx.ui.notify(resolved.error ?? `Unable to resolve ${spec}.`, "error");
         return;
       }
-      arm(ctx, resolved.model, true, commandTarget.thinking ?? configured?.thinking);
+      arm(ctx, resolved.model, true, commandTarget.thinking ?? configured?.thinking, spec);
     },
   });
 
@@ -457,7 +505,7 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
         ctx.ui.notify("Prewalk requires an executor in prewalk.json or --prewalk-into <provider/model>.", "warning");
       } else {
         const resolved = findModel(ctx, target.model);
-        if (resolved.model) arm(ctx, resolved.model, false, target.thinking);
+        if (resolved.model) arm(ctx, resolved.model, false, target.thinking, target.model);
         else ctx.ui.notify(resolved.error ?? `Unable to resolve ${target.model}.`, "error");
       }
     }
@@ -523,7 +571,7 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     }
     const model = ctx.modelRegistry.find(target.provider, target.id);
     if (!model || !ctx.modelRegistry.hasConfiguredAuth(model)) {
-      state = { ...state, phase: "idle", scrubPlan: true, continuePending: false };
+      state = { ...state, continuePending: false };
       persist();
       updateStatus(ctx);
       ctx.ui.notify(`Prewalk could not switch: ${targetLabel(target)} is unavailable.`, "error");
@@ -542,7 +590,6 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     persist();
     const switched = await pi.setModel(model);
     if (!switched) {
-      state = { ...state, phase: "idle" };
       persist();
       updateStatus(ctx);
       ctx.ui.notify(`Prewalk could not switch to ${targetLabel(target)}.`, "error");
@@ -550,7 +597,7 @@ function prewalkExtension(pi: ExtensionAPI, options: PrewalkRuntimeOptions): voi
     }
     if (state.executorThinking) pi.setThinkingLevel(state.executorThinking);
 
-    state = { ...state, phase: "switched" };
+    state = { ...state, phase: "switched", lastHandoffTool: action.toolName };
     persist();
     updateStatus(ctx);
     const actionLabel = action.toolName === "bash" ? "apply_patch" : action.toolName;
