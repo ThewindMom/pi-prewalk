@@ -10,7 +10,7 @@ const STATUS_KEY = "pi-prewalk";
 const PLAN_MESSAGE_PREFIX = "pi-prewalk-plan";
 const CONTINUE_MESSAGE_TYPE = "pi-prewalk-continue";
 const CHECKLIST_MESSAGE_TYPE = "pi-prewalk-checklist";
-const ACTION_TOOLS = new Set(["edit", "write"]);
+const ACTION_TOOLS = new Set(["edit", "write", "apply_patch"]);
 const APPLY_PATCH_COMMAND = /(?:^|(?:&&|\|\||\||;|\n)\s*)(?:[^\s;&|]*\/)?apply_patch(?=\s*(?:$|&&|\|\||;|\n|<<))/m;
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 

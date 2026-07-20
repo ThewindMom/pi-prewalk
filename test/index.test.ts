@@ -234,6 +234,18 @@ describe("pi-prewalk", () => {
     expect(harness.modelChanges.map((model) => `${model.provider}/${model.id}`)).toEqual(["fast/executor"]);
   });
 
+  test("successful apply_patch tool switches after todo", async () => {
+    const harness = createHarness();
+    await harness.start();
+    await harness.command("fast/executor");
+
+    await harness.turn([{ toolName: "todo" }]);
+    await harness.turn([{ toolName: "apply_patch" }]);
+
+    expect(harness.modelChanges.map((model) => `${model.provider}/${model.id}`)).toEqual(["fast/executor"]);
+    expect(harness.notifications.at(-1)?.message).toContain("after the first apply_patch");
+  });
+
   test("edit before todo waits for a later edit", async () => {
     const harness = createHarness();
     await harness.start();
