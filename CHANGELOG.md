@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 - 2026-10-02
+
+- Fix Pi's startup warning by declaring the host-provided coding-agent package
+  as a wildcard peer dependency, retaining a development copy for local checks.
+- Add a regression test for the extension package's dependency declaration.
+- Thanks to @devtm1123 for reporting the warning in issue #1.
+
 ## 0.4.0 - 2026-07-20
 
 - Remove extension-owned model-role aliases in favor of direct, explicit

@@ -44,7 +44,7 @@ pi install git:github.com/ThewindMom/pi-prewalk
 Restart Pi after installation. To pin this release:
 
 ```bash
-pi install git:github.com/ThewindMom/pi-prewalk@v0.4.0
+pi install git:github.com/ThewindMom/pi-prewalk@v0.4.1
 ```
 
 Pi packages execute code with your user permissions. Review third-party source
@@ -57,8 +57,8 @@ installs its dependencies, and makes it available to `pi update` and
 directly with `pi -e ./src/index.ts`.
 
 ```bash
-pi update git:github.com/ThewindMom/pi-prewalk@v0.4.0
-pi remove git:github.com/ThewindMom/pi-prewalk@v0.4.0
+pi update git:github.com/ThewindMom/pi-prewalk@v0.4.1
+pi remove git:github.com/ThewindMom/pi-prewalk@v0.4.1
 ```
 
 ## Use
