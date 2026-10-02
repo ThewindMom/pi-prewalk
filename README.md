@@ -188,7 +188,8 @@ thinking level, and persisted Prewalk state instead of resetting them.
 
 ## Compatibility
 
-- Pi `0.80.8` and `0.80.10` are covered by the compatibility workflow.
+- Pi `0.80.8`, `0.80.10`, and `1.0.0` are covered by the compatibility workflow,
+  including real CLI extension loading, type-checking, and handoff tests.
 - The extension uses Pi's public `getAgentDir()` API and declares the official
   `@earendil-works/pi-coding-agent` package as a wildcard peer dependency.
   Pi provides the runtime; a development dependency supports local tests and
@@ -197,6 +198,8 @@ thinking level, and persisted Prewalk state instead of resetting them.
   credentials.
 
 ## Development
+
+Use Node.js `22.19.0` or newer for the Pi CLI smoke test.
 
 ```bash
 bun install

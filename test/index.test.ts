@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { homedir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   defaultConfigPath,
@@ -16,6 +18,35 @@ describe("pi-prewalk", () => {
     expect(manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBeUndefined();
     expect(manifest.optionalDependencies?.["@earendil-works/pi-coding-agent"]).toBeUndefined();
   });
+
+  test("Pi loads the extension package without startup warnings", () => {
+    const agentDir = mkdtempSync(join(tmpdir(), "pi-prewalk-"));
+    const root = join(import.meta.dir, "..");
+    try {
+      const result = spawnSync("node", [
+        join(root, "node_modules/@earendil-works/pi-coding-agent/dist/cli.js"),
+        "--mode", "rpc", "--no-session", "--no-extensions", "--no-skills",
+        "--no-prompt-templates", "-e", root,
+      ], {
+        cwd: agentDir,
+        env: { ...process.env, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: "1", PI_TELEMETRY: "0" },
+        input: '{"id":"prewalk-smoke","type":"get_commands"}\n',
+        encoding: "utf8",
+        timeout: 20_000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      const messages = result.stdout.trim().split("\n").map((line) => JSON.parse(line));
+      const response = messages.find((message) => message.id === "prewalk-smoke");
+      expect(response?.success).toBe(true);
+      expect(response?.data?.commands).toContainEqual(expect.objectContaining({
+        name: "prewalk", source: "extension",
+      }));
+    } finally {
+      rmSync(agentDir, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   test("uses Pi's default and configured agent directories", () => {
     const original = process.env.PI_CODING_AGENT_DIR;
