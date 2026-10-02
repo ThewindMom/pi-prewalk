@@ -10,6 +10,13 @@ import {
 import { createHarness, fakeModel } from "./harness.ts";
 
 describe("pi-prewalk", () => {
+  test("uses the host-provided Pi runtime with a wildcard peer dependency", async () => {
+    const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json();
+    expect(manifest.peerDependencies?.["@earendil-works/pi-coding-agent"]).toBe("*");
+    expect(manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBeUndefined();
+    expect(manifest.optionalDependencies?.["@earendil-works/pi-coding-agent"]).toBeUndefined();
+  });
+
   test("uses Pi's default and configured agent directories", () => {
     const original = process.env.PI_CODING_AGENT_DIR;
     try {

@@ -190,7 +190,9 @@ thinking level, and persisted Prewalk state instead of resetting them.
 
 - Pi `0.80.8` and `0.80.10` are covered by the compatibility workflow.
 - The extension uses Pi's public `getAgentDir()` API and declares the official
-  `@earendil-works/pi-coding-agent` package as its runtime dependency.
+  `@earendil-works/pi-coding-agent` package as a wildcard peer dependency.
+  Pi provides the runtime; a development dependency supports local tests and
+  type-checking.
 - The target model must be present in Pi's model registry with configured
   credentials.
 
